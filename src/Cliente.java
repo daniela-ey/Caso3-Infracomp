@@ -44,16 +44,13 @@ public class Cliente extends Thread {
             }
 
             //Pao 6:  (envía “OK” | “ERROR”)
-            out.writeObject(respuesta);                  // 6  (envía “OK” | “ERROR”)
-
-            /* =========================================================================
-               7-10  Firma de parámetros Diffie-Hellman
-               ========================================================================= */
-            /* 7. Recibir G, P, G^x  +  firma F(K_w-,(G,P,Gx)) */
-            BigInteger G  = (BigInteger) in.readObject();
-            BigInteger P  = (BigInteger) in.readObject();
-            byte[] gxBytes = (byte[]) in.readObject();
-            byte[] firmaDH = (byte[]) in.readObject();
+            out.writeObject(respuesta); 
+            
+            //Paso 9: Recibir y verificar la respuesta del servidor
+            BigInteger P = (BigInteger) in.readObject();
+            BigInteger G = (BigInteger) in.readObject();
+            byte[] gx = (byte[]) in.readObject();
+            byte[] firma = (byte[]) in.readObject();
 
             /* 9. Verificar firma */
             Signature verDH = Signature.getInstance("SHA256withRSA");

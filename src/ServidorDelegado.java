@@ -40,28 +40,19 @@ public class ServidorDelegado extends Thread {
            //Paso 4 : Enviar reto cifrado al cliente
            out.writeObject(Rta);
 
-
-            // Paso 3: recibir reto cifrado y verificar con clave privada
-
-            byte[] retoCifrado = (byte[]) in.readObject();
-            Cipher rsa = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            rsa.init(Cipher.DECRYPT_MODE, llavePrivada);
-            byte[] retoClaro = rsa.doFinal(retoCifrado);
-
-            if (!Arrays.equals(reto, retoClaro)) {
-                out.writeObject("ERROR");
-                socket.close();
-                return;
-            }
-            out.writeObject("OK");
-
-            // Paso 4: generar parámetros Diffie-Hellman
-            DiffieHellman dh = new DiffieHellman();
+           //Paso 7: Generar G,P y G^x
+            GeneradorLlavesSesion dh = new GeneradorLlavesSesion();
             BigInteger G = dh.getG();
-            BigInteger P = dh.getP();
-            byte[] gx = dh.getClavePublicaCodificada();
+            out.writeObject(G);
 
-            // Paso 5: firmar (G, P, gx)
+            BigInteger P = dh.getP();
+            out.writeObject(P);
+
+            byte[] gx = dh.getClavePublicaCodificada();
+            out.writeObject(gx);
+
+            // Paso 8: Firmar (G, P, gx)
+
             Signature sig = Signature.getInstance("SHA256withRSA");
             sig.initSign(llavePrivada);
             sig.update(G.toByteArray());
@@ -69,10 +60,13 @@ public class ServidorDelegado extends Thread {
             sig.update(gx);
             byte[] firma = sig.sign();
 
-            out.writeObject(G);
-            out.writeObject(P);
-            out.writeObject(gx);
             out.writeObject(firma);
+
+            // Paso 4: generar parámetros Diffie-Hellman
+         
+
+            // Paso 5: firmar (G, P, gx)
+         
 
             // Paso 6: recibir "OK" del cliente
             String ok = (String) in.readObject();
