@@ -49,16 +49,16 @@ public class ClienteDelegado extends Thread {
             out.writeObject(respuesta); 
             
             //Paso 9: Recibir y verificar la respuesta del servidor
-            BigInteger P = (BigInteger) in.readObject();
             BigInteger G = (BigInteger) in.readObject();
+            BigInteger P = (BigInteger) in.readObject();
             byte[] gx = (byte[]) in.readObject();
             byte[] firma = (byte[]) in.readObject();
 
             /* 9. Verificar firma */
             Signature verDH = Signature.getInstance("SHA256withRSA");
             verDH.initVerify(llavePublicaServidorA);
-            verDH.update(P.toByteArray());
             verDH.update(G.toByteArray());
+            verDH.update(P.toByteArray());
             verDH.update(gx);
             boolean okFirmaDH = verDH.verify(firma);
 
@@ -77,7 +77,9 @@ public class ClienteDelegado extends Thread {
             KeyPair keyPair = keyGen.generateKeyPair();
 
             // Enviar G^y
-            out.writeObject(keyPair.getPublic().getEncoded());
+            byte [] gy = (byte[]) keyPair.getPublic().getEncoded();
+            System.out.println(gy);
+            out.writeObject(gy);
 
             // Hacer doPhase
             KeyAgreement ka = KeyAgreement.getInstance("DH");
