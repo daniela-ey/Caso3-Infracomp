@@ -190,6 +190,13 @@ public class ServidorDelegado extends Thread {
             System.out.println("Cliente finalizó con OK: " + finalOK);
             socket.close();
 
+            if (socket.isClosed()) {
+                System.out.println("El socket ya fue cerrado.");
+            } else {
+                System.out.println("El socket todavía está abierto.");
+            }
+            
+
         } catch (Exception e) {
             System.err.println("Error en delegado: " + e.getMessage());
         }
