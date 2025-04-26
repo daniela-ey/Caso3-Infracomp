@@ -8,10 +8,8 @@ public class Simetrico {
     private static final String TRANSFORMATION = "AES/CBC/PKCS5Padding";
     
     /** Genera un IV aleatorio de 16 bytes y cifra. Devuelve IV || textoCifrado */
-    public static byte[] cifrar(SecretKey llave, byte[] datosClaro) throws Exception {
+    public static byte[] cifrar(SecretKey llave, byte[] datosClaro, byte[] ivBytes) throws Exception {
         Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-        byte[] ivBytes = new byte[16];
-        new SecureRandom().nextBytes(ivBytes);
         cipher.init(Cipher.ENCRYPT_MODE, llave, new IvParameterSpec(ivBytes));
         byte[] cifrado = cipher.doFinal(datosClaro);
 

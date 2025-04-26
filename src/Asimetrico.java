@@ -22,7 +22,7 @@ public class Asimetrico {
 
     /* ───────── 2. Sobrecargas de conveniencia para String ──── */
 
-    public static byte[] cifrar(Key llave, String textoClaro) throws Exception {
+    public static byte[] cifrarDeString(Key llave, String textoClaro) throws Exception {
         return cifrar(llave, textoClaro.getBytes(StandardCharsets.UTF_8));
     }
 

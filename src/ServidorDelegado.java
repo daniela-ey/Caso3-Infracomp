@@ -1,28 +1,55 @@
 import java.io.*;
 import java.math.BigInteger;
+import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.*;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
-import javax.crypto.*;
-import javax.crypto.spec.*;
+
+
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+
 
 public class ServidorDelegado extends Thread {
-    private final Socket socket;
-    private final Map<String, String> servicios;
+    private Map<String, String[]> tablaServicios;
     private PublicKey llavePublica;
     private PrivateKey llavePrivada;
+    private Socket socket;
 
-    public ServidorDelegado(Socket socket, Map<String, String> servicios, PublicKey llavePublica, PrivateKey llave) {
-        this.llavePublica= llavePublica;
-        this.llavePrivada = llave;
+    public ServidorDelegado(Socket socket,Map<String, String[]> tablaServicios,  PublicKey llavePublica, PrivateKey llaveprivada) throws IOException {
         this.socket = socket;
-        this.servicios = servicios;
-        
+        this.tablaServicios = tablaServicios;
+        this.llavePublica = llavePublica;
+        this.llavePrivada = llaveprivada;
+     
     }
 
+
+    private static String tablaToString(Map<String, String[]> tablaServicios) {
+        StringBuilder sb = new StringBuilder();
+    
+        for (Map.Entry<String, String[]> entry : tablaServicios.entrySet()) {
+            String id = entry.getKey();
+            String[] datos = entry.getValue();
+    
+            // Concatenamos el ID + descripción + IP + puerto
+            sb.append(id).append(",")
+              .append(datos[0]).append(",")
+              .append(datos[1]).append(",")
+              .append(datos[2]).append("\n");
+        }
+    
+        return sb.toString();
+    }
+    
+
+ 
     @Override
-    public void run() {
+    public void run () {
         try (ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
              ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
 
@@ -39,6 +66,14 @@ public class ServidorDelegado extends Thread {
 
            //Paso 4 : Enviar reto cifrado al cliente
            out.writeObject(Rta);
+
+           // Paso 6: recibir "OK" o "ERROR"
+              String respuesta = (String) in.readObject();
+                if ("ERROR".equals(respuesta)) {
+                    socket.close();
+                    System.out.println("Cliente rechazó el reto.");
+                    return;
+                }
 
            //Paso 7: Generar G,P y G^x
             GeneradorLlavesSesion dh = new GeneradorLlavesSesion();
@@ -62,59 +97,93 @@ public class ServidorDelegado extends Thread {
 
             out.writeObject(firma);
 
-            // Paso 4: generar parámetros Diffie-Hellman
-         
-
-            // Paso 5: firmar (G, P, gx)
-         
-
-            // Paso 6: recibir "OK" del cliente
+        
+            // Paso 10: recibir "OK" del cliente
             String ok = (String) in.readObject();
             if (!"OK".equals(ok)) {
                 socket.close();
+                System.out.println("Cliente rechazó la firma.");
                 return;
             }
 
-            // Paso 7: recibir Gy, calcular llave compartida
-            byte[] gyBytes = (byte[]) in.readObject();
-            dh.procesarClaveRemota(gyBytes);
+            // Paso 11: recibir G^y del cliente
+            byte[] gy = (byte[]) in.readObject();
+
+            //Paso 11b: Generar clave pública del cliente (G^y)^x = G^(xy)
+            dh.procesarClaveRemota(gy);  // doPhase() usando clave pública del cliente
             byte[] llaveCompartida = dh.obtenerLlaveCompartida();
 
-            // Paso 8: derivar claves AES y HMAC
-            byte[] hash = Digest.getDigest("SHA-512", llaveCompartida);
-            SecretKey kAES = new SecretKeySpec(Arrays.copyOfRange(hash, 0, 32), "AES");
-            SecretKey kHMAC = new SecretKeySpec(Arrays.copyOfRange(hash, 32, 64), "HmacSHA256");
+            // Derivar llaves de sesión
+            SecretKey[] llavesSesion = dh.derivarLlaves(llaveCompartida);
+            SecretKey k_AB1 = llavesSesion[0]; // AES para cifrado
+            SecretKey k_AB2 = llavesSesion[1]; // HMAC para autenticidad
 
-            // Paso 9: enviar tabla cifrada con HMAC
-            byte[] datosTabla = tablaToString(servicios).getBytes();
-            byte[] paquete = Simetrico.cifrar(kAES, datosTabla);
+            // Paso 12b: recibir IV
+            byte[] ivBytes = (byte[]) in.readObject();
 
+            //Paso 13: Cifrar la tabla de servicios
+
+            // Convertir tabla a texto plano
+            byte[] datosTabla = tablaToString(tablaServicios).getBytes();
+
+            // Cifrar
+            byte[] tablaCifrada = Simetrico.cifrar(k_AB1, datosTabla, ivBytes);
+
+            // Calcular HMAC
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(kHMAC);
-            byte[] hmac = mac.doFinal(paquete);
+            mac.init(k_AB2);
+            byte[] hmacTabla = mac.doFinal(tablaCifrada);
 
-            out.writeObject(paquete);
-            out.writeObject(hmac);
+            // Enviar al cliente
+            out.writeObject(tablaCifrada);
+            out.writeObject(hmacTabla);    
 
-            // Paso 10: recibir consulta cifrada y su HMAC
+            // Paso 15: Verificar HMAC de la tabla
+            // 1. Recibir paqueteConsulta (IV + datos cifrados)
             byte[] paqueteConsulta = (byte[]) in.readObject();
-            byte[] hmacConsulta = (byte[]) in.readObject();
 
-            mac.init(kHMAC);
-            if (!Arrays.equals(hmacConsulta, mac.doFinal(paqueteConsulta))) {
+            // 2. Recibir HMAC
+            byte[] hmacRecibido = (byte[]) in.readObject();
+
+            // 3. Verificar HMAC
+            mac.init(k_AB2);
+            byte[] hmacCalculado = mac.doFinal(paqueteConsulta);
+
+            if (!Arrays.equals(hmacRecibido, hmacCalculado)) {
+                System.out.println("Error: HMAC inválido en la consulta. Cerrando conexión.");
                 socket.close();
                 return;
             }
 
-            byte[] consultaDescifrada = Simetrico.descifrar(kAES, paqueteConsulta);
-            String id = new String(consultaDescifrada).trim();
-            String respuesta = servicios.getOrDefault(id, "-1,-1");
+            // Paso 16: Descifrar consulta
+            byte[] datosDescifrados = Simetrico.descifrar(k_AB1, paqueteConsulta);
+            String consulta = new String(datosDescifrados);
 
-            byte[] paqueteResp = Simetrico.cifrar(kAES, respuesta.getBytes());
-            byte[] hmacResp = mac.doFinal(paqueteResp);
+            System.out.println("Consulta recibida: " + consulta);
 
-            out.writeObject(paqueteResp);
-            out.writeObject(hmacResp);
+            String[] partes = consulta.split(",");
+            String idServicio = partes[0];
+            String ipCliente = partes[1];
+
+            // Buscar en la tabla de servicios el IP y puerto correspondiente
+            String[] datosServicio = tablaServicios.get(idServicio); 
+
+            if (datosServicio == null) {
+                datosServicio = new String[]{"-1", "-1"}; // No encontrado
+            }
+
+            respuesta = datosServicio[1] + "," + datosServicio[2]; // ip_servidor,puerto_servidor
+            byte[] paqueteRespuesta = Simetrico.cifrar(k_AB1, respuesta.getBytes(), ivBytes);
+
+            // 3. Calcular HMAC de la respuesta cifrada
+            mac.init(k_AB2);
+            byte[] hmacRespuesta = mac.doFinal(paqueteRespuesta);
+
+            // 4. Enviar ambos al cliente
+            out.writeObject(paqueteRespuesta);
+            out.writeObject(hmacRespuesta);
+
+
 
             // Paso final: esperar "OK" del cliente
             String finalOK = (String) in.readObject();
@@ -124,13 +193,5 @@ public class ServidorDelegado extends Thread {
         } catch (Exception e) {
             System.err.println("Error en delegado: " + e.getMessage());
         }
-    }
-
-    private String tablaToString(Map<String, String> tabla) {
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : tabla.entrySet()) {
-            sb.append(entry.getKey()).append(" → ").append(entry.getValue()).append("\n");
-        }
-        return sb.toString();
     }
 }

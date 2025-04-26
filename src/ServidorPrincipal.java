@@ -1,41 +1,51 @@
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.security.PrivateKey;
-import java.security.PublicKey;
+import java.io.*;
+import java.net.*;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
 import java.util.HashMap;
 import java.util.Map;
 
 public class ServidorPrincipal {
-    private static final int PUERTO = 9090;
-    private static Map<String, String> servicios = new HashMap<>();
-    private static PublicKey llavePublica;
-    private static PrivateKey llavePrivada;
 
-    public ServidorPrincipal(PublicKey llavePublica, PrivateKey llavePrivada) {
-        this.llavePublica = llavePublica;       
-        this.llavePrivada = llavePrivada;
-        cargarServicios();
+    private static final int PUERTO = 3400;
+
+    private ServerSocket servidorSocket;
+    private PrivateKey llavePrivada;
+    private PublicKey llavePublica;
+    private Map<String, String[]> tablaServicios;
+
+    public ServidorPrincipal(PublicKey llavePublica, PrivateKey llavePrivada ) throws Exception {
+        // 1. Inicializar servidor
+        this.servidorSocket = new ServerSocket(PUERTO);
+
+        // 2. Cargar llaves
+        this.llavePrivada =llavePrivada;
+        this.llavePublica = llavePublica;
+
+        // 3. Cargar tabla de servicios
+        this.tablaServicios = new HashMap<>();
+        tablaServicios.put("1", new String[]{"Estado vuelo", "192.168.0.10", "9001"});
+        tablaServicios.put("2", new String[]{"Disponibilidad vuelos", "192.168.0.11", "9002"});
+        tablaServicios.put("3", new String[]{"Costo de un vuelo", "192.168.0.12", "9003"});
     }
 
-    public static void main(String[] args) throws Exception {
-        cargarServicios();
-        ServerSocket servidor = new ServerSocket(PUERTO);
-        System.out.println("Servidor esperando conexiones...");
-
+    // Método para escuchar conexiones
+    public void atenderClientes() throws Exception {
+        System.out.println("Servidor principal escuchando en puerto " + PUERTO);
         while (true) {
-            
-            Socket cliente = servidor.accept();
-            
-            new Thread(new ServidorDelegado(cliente, servicios, llavePublica, llavePrivada)).start();
-           
+            Socket socketCliente = servidorSocket.accept();
+            System.out.println("Nuevo cliente conectado: " + socketCliente.getInetAddress());
+
+            ServidorDelegado delegado = new ServidorDelegado(socketCliente, tablaServicios, llavePublica, llavePrivada);
+            delegado.start();
         }
     }
 
-    private static void cargarServicios() {
-        servicios.put("1", "192.168.0.10:9001");
-        servicios.put("2", "192.168.0.11:9002");
-        // más servicios...
-    }
+
 }
+
+
+
 
 
