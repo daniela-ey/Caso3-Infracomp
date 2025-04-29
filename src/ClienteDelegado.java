@@ -1,7 +1,6 @@
 import java.io.*;
 import java.math.BigInteger;
 import java.net.Socket;
-import java.nio.file.*;
 import java.security.*;
 import java.security.spec.*;
 import java.util.Arrays;
@@ -17,6 +16,8 @@ public class ClienteDelegado extends Thread {
     private static final int    PUERTO          = 3400;
     private PublicKey llavePublicaServidorA;
     private SecretKey k_AB1, k_AB2;
+    private long tiempoValidar;
+
 
 
 
@@ -130,6 +131,7 @@ public class ClienteDelegado extends Thread {
             out.writeObject(hmacConsulta);
 
             /* 17. Recibir respuesta, verificar HMAC y descifrar */
+            long inicio = System.nanoTime();
             byte[] paqueteResp = (byte[]) in.readObject();
             byte[] hmacResp    = (byte[]) in.readObject();
             mac.init(k_AB2);
@@ -141,12 +143,19 @@ public class ClienteDelegado extends Thread {
                 out.writeObject("OK"); // 18  “OK” final (opcional)
             }
             byte[] respClaro = Simetrico.descifrar(k_AB1, paqueteResp);
+            long fin = System.nanoTime();
+            // Calcular tiempo de firma
+            tiempoValidar = tiempoValidar +  (fin - inicio) / 1_000_000;
             System.out.println("[" + getName() + "] Respuesta: " + new String(respClaro));
 
 
         } catch (Exception e) {
             System.err.println("[" + getName() + "] Error: " + e.getMessage());
         }
+    }
+
+    public long getTiempoValidar() {
+        return tiempoValidar;
     }
 
    
