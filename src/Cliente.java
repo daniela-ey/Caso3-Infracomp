@@ -8,9 +8,6 @@ import java.util.Arrays;
 import java.util.Random;
 import javax.crypto.*;
 import javax.crypto.spec.*;
-import java.security.PublicKey;
-
-
 
 public class Cliente extends Thread {
 
@@ -18,22 +15,27 @@ public class Cliente extends Thread {
     private PublicKey llavePublicaServidorA;
 
     public Cliente(PublicKey llavePublicaServidorA, int cantidadClientes) {
-        this.llavePublicaServidorA= llavePublicaServidorA;
+        this.llavePublicaServidorA = llavePublicaServidorA;
         this.cantidadClientes = cantidadClientes;
-
     }
 
-    public void iniciar () {
+    // Método para escenario (i): Cliente iterativo (32 consultas)
+    public void iniciarIterativo() {
+        System.out.println("Iniciando cliente iterativo...");
+        ClienteIterativo cliente = new ClienteIterativo(llavePublicaServidorA);
+        cliente.start();
+    }
+
+    // Método para escenario (ii): Clientes concurrentes
+    public void iniciarConcurrente() {
+        System.out.println("Iniciando clientes concurrentes...");
         for (int i = 0; i < cantidadClientes; i++) {
-            System.out.println("Cliente " + (i + 1) + " iniciado.");
+            System.out.println("Cliente concurrente " + (i + 1) + " iniciado.");
             ClienteDelegado cliente = new ClienteDelegado(llavePublicaServidorA);
             cliente.start(); // .start() para que sea concurrente
         }
     }
-
-  
-
-   
 }
+
 
 

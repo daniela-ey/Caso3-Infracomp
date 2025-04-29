@@ -19,6 +19,8 @@ public class ServidorDelegado extends Thread {
     private PublicKey llavePublica;
     private PrivateKey llavePrivada;
     private Socket socket;
+    private long tiempoFirma;
+    private long tiempoCifrado;
 
     public ServidorDelegado(Socket socket,Map<String, String[]> tablaServicios,  PublicKey llavePublica, PrivateKey llaveprivada) throws IOException {
         this.socket = socket;
@@ -93,7 +95,13 @@ public class ServidorDelegado extends Thread {
             sig.update(G.toByteArray());
             sig.update(P.toByteArray());
             sig.update(gx);
+            long inicio = System.nanoTime();
+
             byte[] firma = sig.sign();
+
+            long fin = System.nanoTime();
+            // Calcular tiempo de firma
+            tiempoFirma = tiempoFirma +  (fin - inicio) / 1_000_000;
 
             out.writeObject(firma);
 
@@ -127,7 +135,13 @@ public class ServidorDelegado extends Thread {
             byte[] datosTabla = tablaToString(tablaServicios).getBytes();
 
             // Cifrar
+            long inicioCifrado = System.nanoTime();
+
             byte[] tablaCifrada = Simetrico.cifrar(k_AB1, datosTabla, ivBytes);
+
+            long finCifrado = System.nanoTime();
+            // Calcular tiempo de cifrado
+            tiempoCifrado = tiempoCifrado + (finCifrado - inicioCifrado) / 1_000_000;
 
             // Calcular HMAC
             Mac mac = Mac.getInstance("HmacSHA256");
@@ -201,4 +215,12 @@ public class ServidorDelegado extends Thread {
             System.err.println("Error en delegado: " + e.getMessage());
         }
     }
+
+
+    public long getTiempoFirma() {
+        return tiempoFirma;
+    }
+
+    public long getTiempoCifrado() {
+        return tiempoCifrado;}
 }

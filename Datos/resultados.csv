@@ -1,0 +1,2 @@
+Escenario,Delegados,Muestras,AvgFirma(ms),AvgCifTabla(ms),AvgVerif(ms),AvgCifRespAES(ms),AvgCifRespRSA(ms)
+Iterativo,1,1,9.106,0.000,0.000,0.000,0.000
